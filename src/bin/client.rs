@@ -1,5 +1,7 @@
 use concrete::{ConfigBuilder, generate_keys, set_server_key, FheUint8};
 use concrete::prelude::*;
+use std::net::TcpStream;
+use bincode::{self, serialize_into};
 // use serde_json::{Serializer, Deserializer};
 // use reqwest::blocking::Client;
 
@@ -26,7 +28,8 @@ fn main() {
     let b = FheUint8::encrypt(clear_b, &client_key);
     println!("Encrypted b!");
 
-    let url = "http://localhost:8000/add";
+    let addr = "127.0.0.1:50000";
+    let stream = TcpStream::connect(addr).unwrap();
 
     let payload = common::Payload {
         a,
@@ -34,18 +37,9 @@ fn main() {
         key: server_key_clone
     };
 
-    let encoded = bincode::serialize(&payload).unwrap();
-    println!("Length: {}", encoded.len());
+    serialize_into(&stream, &payload);
 
-    let response = reqwest::blocking::Client::new()
-        .post(url)
-        .json(&payload)
-        .send()
-        .unwrap()
-        .bytes()
-        .unwrap();
-    
-    let result : FheUint8 = bincode::deserialize(&response).unwrap();
+    let result : FheUint8 = bincode::deserialize_from(&stream).unwrap();
 
     let decrypted_result: u8 = result.decrypt(&client_key);
 

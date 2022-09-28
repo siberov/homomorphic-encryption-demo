@@ -1,31 +1,19 @@
-#[macro_use] extern crate rocket;
-
-use concrete::{set_server_key};
-use rocket::data::{ToByteUnit, Limits};
-use rocket::serde::json::{Json, json, Value};
+use concrete::{set_server_key, FheUint8};
+use std::net::TcpListener;
 
 mod common;
  
-#[post("/add", format = "application/json", data = "<dat>")]
-fn add(dat: &[u8]) -> Value {
+fn main() -> Result<(), bincode::Error> {
+    let (listener, _) = TcpListener::bind("127.0.0.1:50000").unwrap().accept().unwrap();
     println!("Got connection!");
-    let payload : common::Payload = bincode::deserialize(dat).unwrap();
+    let payload : common::Payload = bincode::deserialize_from(&listener).unwrap();
+
     set_server_key(payload.key.to_owned());
     
     let a = payload.a.clone();
     let b = payload.b.clone();
 
-    let res = a + b;
+    let res : FheUint8 = a + b;
 
-    let response = bincode::serialize(&res).unwrap();
-
-    response
-}
-
-#[launch]
-fn rocket() -> _ {
-    let figment = rocket::Config::figment()
-        .merge(("limits", Limits::new().limit("json", 512.mebibytes())));
-
-    rocket::custom(figment).mount("/", routes![add])
+    bincode::serialize_into(listener, &res)
 }
