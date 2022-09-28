@@ -1,14 +1,52 @@
 use concrete::{set_server_key, FheUint8};
-use std::{net::TcpListener, slice, mem};
+use std::{net::{TcpListener, SocketAddr}, slice, mem, env};
 use sha2::{Sha256, Digest};
 
 mod common;
  
-fn main() -> Result<(), bincode::Error> {
+fn main() {
+    let socket_addr: SocketAddr;
+    let args: Vec<_> = env::args().collect();
+    if args.len() == 1 {
+        socket_addr = common::DEFAULT_ADDRESS.parse().unwrap();
+    } else if args.len() == 2 {
+        socket_addr = match ("0.0.0.0:".to_string() + &args[1]).parse() {
+            Ok(addr) => addr,
+            Err(_) => {
+                println!("Invalid port number. Exiting");
+                return
+            }
+        }
+    } else {
+        println!("Invalid number of arguments. Supply 0 arguments to use the default port, or supply exactly 1 argument defining a port number.");
+        return
+    }
+
+    let listener = match TcpListener::bind(socket_addr) {
+        Ok(l) => l,
+        Err(_) => {
+            println!("Error binding to port {}. Exiting.", socket_addr);
+            return
+        }
+    };
+
     println!("Waiting for connection ...");
-    let (listener, _) = TcpListener::bind("127.0.0.1:50000").unwrap().accept().unwrap();
-    println!("Got connection.");
-    let payload : common::Payload = bincode::deserialize_from(&listener).unwrap();
+    let stream = match listener.accept() {
+        Ok((s, _)) => s,
+        Err(err) => {
+            println!("Error establishing connection: {}. Exiting.", err);
+            return
+        }
+    };
+
+    println!("Got connection from {}.", stream.peer_addr().unwrap());
+    let payload : common::Payload = match bincode::deserialize_from(&stream) {
+        Ok(res) => res,
+        Err(_) => {
+            println!("Error deserializing payload. Exiting");
+            return
+        }
+    };
 
     set_server_key(payload.key.to_owned());
     
@@ -33,5 +71,8 @@ fn main() -> Result<(), bincode::Error> {
     let res_hash = hasher.finalize();
     println!("Hash of a:\t{:02X?}\nHash of b:\t{:02X?}\nHash of a + b:\t{:02X?}", a_hash, b_hash, res_hash);
 
-    bincode::serialize_into(listener, &res)
+    if bincode::serialize_into(stream, &res).is_err() {
+        println!("Error sending reply. Exiting.");
+        return
+    }
 }
