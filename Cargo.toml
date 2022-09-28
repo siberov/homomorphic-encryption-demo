@@ -7,9 +7,6 @@ edition = "2021"
 
 [dependencies]
 bincode = "1.3.3"
-rocket = { version = "0.5.0-rc.2", features = ["json"] }
 concrete = { version = "0.2.0-beta.0", features = ["integers", "serde"]}
-serde_json = "1.0.85"
-reqwest = { version = "0.11", features = ["blocking", "json"] }
 serde = "1.0.145"
 sha2 = "0.10.6"
